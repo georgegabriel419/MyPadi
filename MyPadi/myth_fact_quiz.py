@@ -165,3 +165,6 @@ def main():
                 "💬 Chat with MyPadi</button></a>",
                 unsafe_allow_html=True
             )
+
+# 👇 This is the FIX: ensure the app runs in Streamlit
+main()
