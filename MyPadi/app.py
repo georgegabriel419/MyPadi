@@ -1,12 +1,7 @@
 import streamlit as st
-from PIL import Image
 
 # ---- Page Config ----
 st.set_page_config(page_title="MyPadi", layout="centered")
-
-# ---- Logo ----
-logo = Image.open("logo.png")
-st.image(logo, width=100)
 
 # ---- Custom CSS ----
 st.markdown("""
@@ -18,10 +13,10 @@ st.markdown("""
 
         .welcome-title {
             text-align: center;
-            font-size: 2rem;
+            font-size: 2.2rem;
             font-weight: 700;
-            margin-top: 0.5rem;
-            margin-bottom: 0.3rem;
+            margin-top: 1rem;
+            margin-bottom: 0.5rem;
             color: #333;
         }
 
@@ -29,13 +24,13 @@ st.markdown("""
             text-align: center;
             font-size: 0.95rem;
             color: #555;
-            margin-bottom: 1.2rem;
+            margin-bottom: 1.5rem;
         }
 
         .card {
-            border-radius: 10px;
+            border-radius: 12px;
             padding: 1.2rem;
-            margin: 1rem auto;
+            margin: 1.2rem auto;
             width: 90%;
             max-width: 420px;
             box-shadow: 0 4px 14px rgba(0,0,0,0.06);
@@ -85,7 +80,7 @@ st.markdown("""
             display: flex;
             justify-content: center;
             gap: 2rem;
-            margin-top: 1rem;
+            margin-top: 1.2rem;
             margin-bottom: 2rem;
         }
 
