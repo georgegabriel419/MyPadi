@@ -171,8 +171,3 @@ else:
             unsafe_allow_html=True
         )
         
-def main():
-   
-    # rest of your quiz logic
-    if __name__ == "__main__":
-        main()
