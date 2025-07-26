@@ -8,23 +8,31 @@ from langchain.prompts import ChatPromptTemplate, MessagesPlaceholder, SystemMes
 from langchain.chains import LLMChain
 from langchain.memory import ChatMessageHistory, ConversationBufferMemory
 from pinecone import Pinecone
-from keywords import allowed_keywords  # Make sure this exists
+from keywords import allowed_keywords
+from style import apply_custom_styles
 
+# ───── Apply Custom Theme ─────
+apply_custom_styles()
+
+# ───── Page Setup ─────
+st.set_page_config(page_title="Chat with MyPadi", page_icon="💬")
+
+# ───── Init ─────
 nest_asyncio.apply()
 load_dotenv()
 
-PINECONE_API_KEY = "pcsk_5dpELm_NtvrjntzjQt2by64KzgA8hDvm9gY6vSHDXdRA4CsL6G2wgMn6srfUAudeFznf4P"
-GOOGLE_API_KEY = "AIzaSyBOpT5FiGuqeLhjMiEDrVzWc2hsnzZNWkk"
+PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
+GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 
-# Init Pinecone & Embedding
 pc = Pinecone(api_key=PINECONE_API_KEY)
 pinecone_index = pc.Index("sti-teenage-preg")
+
 embed_model = GoogleGenerativeAIEmbeddings(
     model="models/embedding-001",
     google_api_key=GOOGLE_API_KEY
 )
 
-# Friendly tone greeting per language
+# ───── Language Setup ─────
 language_greetings = {
     "English": "Hey bestie! 😊 I'm MyPadi. Let's gist about STIs, pregnancy or anything health-y.",
     "Yoruba": "Ore mi! 😊 Oruko mi ni MyPadi. E je ka ba ara wa soro nipa STI ati oyun.",
@@ -60,7 +68,7 @@ def generate_response(question, user_lang):
         return {
             "English": "Hmm bestie 🫶🏾 — I can only help with STI and teenage pregnancy matters. Ask me something like that!",
             "Yoruba": "Ore mi 🫶🏾 — Mo le ran e lowo lori koko STI ati oyun lasiko omode nikan.",
-            "Igbo": "Nwanne 🫶🏾 — Ana m enyere maka STIs na ime nwa n'oge ntorobịa.",
+            "Igbo": "Nwanne 🫶🏾 — Ana m enyere maka STIs na ime nwa n'oge ntorobía.",
             "Hausa": "Kawaye 🫶🏾 — Tambayoyina na game da STI ko ciki a kuruciya ne kawai.",
             "Pidgin": "Padi mi 🫶🏾 — Na only STI or teenage belle I sabi talk about oh."
         }.get(user_lang, "Sorry bestie — let’s stick to STIs and teenage pregnancy gists.")
@@ -126,47 +134,51 @@ def generate_response(question, user_lang):
     except Exception as e:
         return f"Ahn ahn, something go wrong o 😥 ({str(e)})"
 
-# ───── Streamlit UI ─────
-st.set_page_config(page_title="Chat with MyPadi", page_icon="💬")
-st.title("💬 Talk to MyPadi – Safe Gist, Real Answers")
+# ───── Main App ─────
+def main():
+    # Shift entire layout much more upward
+    st.markdown("<div style='margin-top:-160px'></div>", unsafe_allow_html=True)
 
-# First-time language selection
-if "language" not in st.session_state:
-    st.subheader("🌍 Choose your language to gist:")
-    lang = st.radio("Select Language:", ["English", "Yoruba", "Igbo", "Hausa", "Pidgin"])
-    if st.button("✅ Let's Go!"):
-        st.session_state.language = lang
-        st.rerun()
+    # Slightly smaller title and subtitle
+    st.markdown("<h2 style='font-size:1.75rem;'>Talk to MyPadi — Real Answers, No Judgement</h2>", unsafe_allow_html=True)
 
-# After language is picked
-else:
-    lang = st.session_state.language
-    st.success(f"🗣️ You're chatting in: **{lang}**")
+    if "language" not in st.session_state:
+        st.markdown("<h4 style='font-size:1.1rem;'>🌍 Choose your language to gist:</h4>", unsafe_allow_html=True)
+        lang = st.radio("Select Language:", ["English", "Yoruba", "Igbo", "Hausa", "Pidgin"])
+        if st.button("✅ Let's Go!"):
+            st.session_state.language = lang
+            st.rerun()
+    else:
+        lang = st.session_state.language
+        st.success(f"🗣️ You're chatting in: **{lang}**")
 
-    if st.button("🔄 Change Language"):
-        del st.session_state["language"]
-        st.rerun()
+        if st.button("🔄 Change Language"):
+            del st.session_state["language"]
+            st.rerun()
 
-    st.markdown(f"#### {language_greetings.get(lang)}")
+        st.markdown(f"#### {language_greetings.get(lang)}")
 
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = [
-            {"role": "assistant", "content": language_greetings.get(lang)}
-        ]
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = [
+                {"role": "assistant", "content": language_greetings.get(lang)}
+            ]
 
-    for message in st.session_state.chat_history:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        for message in st.session_state.chat_history:
+            with st.chat_message(message["role"]):
+                st.markdown(message["content"])
 
-    user_input = st.chat_input("What’s on your mind?")
-    if user_input:
-        with st.chat_message("user"):
-            st.markdown(user_input)
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        user_input = st.chat_input("What’s on your mind?")
+        if user_input:
+            with st.chat_message("user"):
+                st.markdown(user_input)
+            st.session_state.chat_history.append({"role": "user", "content": user_input})
 
-        with st.spinner("Hold on bestie... thinking 🤔"):
-            reply = generate_response(user_input, lang)
+            with st.spinner("Hold on bestie... thinking 🤔"):
+                reply = generate_response(user_input, lang)
 
-        with st.chat_message("assistant"):
-            st.markdown(reply)
-        st.session_state.chat_history.append({"role": "assistant", "content": reply})
+            with st.chat_message("assistant"):
+                st.markdown(reply)
+            st.session_state.chat_history.append({"role": "assistant", "content": reply})
+
+if __name__ == "__main__":
+    main()

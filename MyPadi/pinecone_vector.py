@@ -40,7 +40,7 @@ if index_name not in existing_index_names:
 pinecone_index = pc.Index(index_name)
 
 # Load PDFs from folder
-pdf_folder_path = 'STI_TEENAGE_PREG'  # Folder with all your PDFs
+pdf_folder_path = '../MyPadi/STI_TEENAGE_PREG'
 documents = []
 
 for filename in os.listdir(pdf_folder_path):
