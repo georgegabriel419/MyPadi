@@ -12,17 +12,16 @@ from myth_data import (
 )
 from style import apply_custom_styles
 
-# --- Run styling and set page ---
 apply_custom_styles()
 st.set_page_config(page_title="Myth vs Fact Quiz", page_icon="🧠")
 
-# --- Load API Key ---
+# Load API Key
 load_dotenv()
 GENAI_API_KEY = os.getenv("GOOGLE_API_KEY")
 genai.configure(api_key=GENAI_API_KEY)
 model = genai.GenerativeModel("models/gemini-2.0-flash")
 
-# --- Language mapping ---
+# Language-to-quiz-data mapping
 language_map = {
     "English": ("English", quiz_data_english),
     "Yoruba": ("Yoruba", quiz_data_yoruba),
@@ -31,7 +30,7 @@ language_map = {
     "Pidgin": ("Pidgin English", quiz_data_pidgin)
 }
 
-# --- Session defaults ---
+# Default session state
 defaults = {
     "started": False,
     "age_group": None,
@@ -50,7 +49,7 @@ for key, val in defaults.items():
     if key not in st.session_state:
         st.session_state[key] = val
 
-# --- Setup Page ---
+# 🌐 Language & Age Group Setup
 if not st.session_state.started:
     st.title("🧠 SRH Myth vs Fact Quiz")
 
@@ -67,13 +66,15 @@ if not st.session_state.started:
             readable_lang, data = language_map[lang_choice]
             st.session_state.language = readable_lang
             st.session_state.age_group = age_choice
+
             all_questions = [q for q in data if q["age_group"] == age_choice]
             random.shuffle(all_questions)
             st.session_state.questions = all_questions[:10]
+
             st.session_state.started = True
             st.rerun()
 
-# --- Quiz Logic ---
+# 🧠 Quiz Logic
 elif st.session_state.index < len(st.session_state.questions):
     lang = st.session_state.language
     q = st.session_state.questions[st.session_state.index]
@@ -114,6 +115,7 @@ elif st.session_state.index < len(st.session_state.questions):
             st.session_state.feedback.append(feedback)
             st.session_state.answered = True
 
+    # Show feedback
     if st.session_state.answered:
         st.markdown("### 💬 MyPadi's Tip:")
         st.info(st.session_state.ai_response)
@@ -130,7 +132,7 @@ elif st.session_state.index < len(st.session_state.questions):
                 st.session_state.index += 1
                 st.rerun()
 
-# --- Final Page ---
+# ✅ Final Score Page
 else:
     st.header("🎉 Quiz Completed!")
     st.markdown(f"**Your Score:** {st.session_state.score} / {len(st.session_state.questions)}")
@@ -153,6 +155,7 @@ else:
             except:
                 st.warning("⚠️ Couldn't generate summary.")
 
+    # Final actions
     col1, col2 = st.columns([1, 1])
     with col1:
         if st.button("🔁 Restart"):
@@ -167,3 +170,9 @@ else:
             "💬 Chat with MyPadi</button></a>",
             unsafe_allow_html=True
         )
+        
+def main():
+   
+    # rest of your quiz logic
+    if __name__ == "__main__":
+        main()
