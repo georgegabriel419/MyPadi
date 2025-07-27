@@ -117,7 +117,7 @@ def main():
                 4. End with an **encouraging message** and 1 helpful follow-up question.
 
                 Avoid judgment. Be gentle, relatable, and supportive.
-                Also make the summary very short. No too much words. It should be less than 150 words in total.
+                Also make the summary very short. No too much words. It should be less than 100 words in total.
                 """
             else:
                 prompt = f"""
