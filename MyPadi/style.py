@@ -1,4 +1,3 @@
-# style.py — shared theme module for all pages
 
 def apply_custom_styles():
     import streamlit as st
