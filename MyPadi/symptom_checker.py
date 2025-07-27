@@ -38,6 +38,10 @@ st.markdown("""
 # ✅ Page config
 st.set_page_config(page_title="Smart Symptom Checker", page_icon="🩺")
 
+def trim_to_words(text, limit=150):
+    words = text.split()
+    return ' '.join(words[:limit]) + ('...' if len(words) > limit else '')
+
 def main():
     load_dotenv()
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -101,7 +105,6 @@ def main():
         with st.spinner("Thinking like your bestie... 🤔"):
             user_summary = "\n".join(st.session_state.answers)
 
-            # Add prediction prompt if high STI risk
             if category == "STI" and "High" in risk_level:
                 prompt = f"""
                 You are MyPadi, a helpful sexual health companion for Nigerian youth.
@@ -120,7 +123,6 @@ def main():
                 
                 Avoid judgment. Be gentle, relatable, and supportive.
                 """
-
             else:
                 prompt = f"""
                 You are MyPadi — a friendly and caring health buddy for teens and young adults.
@@ -141,8 +143,9 @@ def main():
 
             try:
                 response = model.generate_content(prompt)
+                trimmed = trim_to_words(response.text.strip(), 150)
                 st.markdown("### 💬 MyPadi's Summary")
-                st.success(response.text.strip())
+                st.success(trimmed)
             except Exception as e:
                 st.error("⚠️ Failed to generate AI summary.")
                 st.exception(e)
