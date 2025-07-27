@@ -5,11 +5,11 @@ backgroundColor = "#f8f5ff"
 secondaryBackgroundColor = "#f3eaff"
 textColor = "#000000"
 font = "sans serif"
+
 [server]
 fileWatcherType = "none"
+enableStaticServing = true
 
 [ui]
 hideTopBar = true
-
-[server]
-enableStaticServing = true
+browser.gatherUsageStats = false
