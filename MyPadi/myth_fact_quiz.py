@@ -18,6 +18,10 @@ def main():
 
     apply_custom_styles()
 
+    def trim_to_words(text, max_words=180):
+        words = text.split()
+        return " ".join(words[:max_words]) + ("..." if len(words) > max_words else "")
+
     # Load API Key
     load_dotenv()
     GENAI_API_KEY = os.getenv("GOOGLE_API_KEY")
@@ -102,9 +106,10 @@ def main():
                         A Nigerian teen who speaks {lang} answered: "{q['statement']}" and said it's a {"Myth" if is_user_myth else "Fact"}.
                         Respond in {lang} with a short, caring correction and 1 tip on sexual health.
                         Be friendly and helpful.
+                        ⚠️ Your full response must be under 150 words.
                         """
                         response = model.generate_content(prompt)
-                        feedback = response.text.strip()
+                        feedback = trim_to_words(response.text.strip(), 150)
                     except:
                         feedback = "⚠️ Feedback not available."
 
@@ -142,11 +147,14 @@ def main():
                     missed = "\n".join(st.session_state.incorrect)
                     prompt = f"""
                     A Nigerian teen who speaks {st.session_state.language} missed these questions:\n\n{missed}
-                    Write a friendly summary in {st.session_state.language} to help them improve and remember.
+                    Write a structured, friendly summary in {st.session_state.language} to help them learn and remember.
+                    Respond like a caring health buddy. Break your answer into 2–3 brief tips and a final encouragement.
+                    ⚠️ Keep the entire response under 150 words.
                     """
                     result = model.generate_content(prompt)
+                    summary = trim_to_words(result.text.strip(), 150)
                     st.markdown("### 🧠 Smart Tip Summary:")
-                    st.success(result.text.strip())
+                    st.success(summary)
                 except:
                     st.warning("⚠️ Couldn't generate summary.")
 
@@ -165,7 +173,5 @@ def main():
                 unsafe_allow_html=True
             )
 
-
-# 👇 Ensure this runs when imported or called in other files
 if __name__ == "__main__":
     main()
