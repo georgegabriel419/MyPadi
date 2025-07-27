@@ -1,4 +1,6 @@
 import streamlit as st
+st.set_page_config(page_title="Myth vs Fact Quiz", page_icon="🧠")  # ✅ Must be first
+
 import random
 import os
 from dotenv import load_dotenv
@@ -13,7 +15,6 @@ from myth_data import (
 from style import apply_custom_styles
 
 apply_custom_styles()
-st.set_page_config(page_title="Myth vs Fact Quiz", page_icon="🧠")
 
 # Load API Key
 load_dotenv()
@@ -56,7 +57,7 @@ if not st.session_state.started:
     st.subheader("🌍 Choose your language:")
     lang_choice = st.selectbox("Pick a language:", ["Select Language"] + list(language_map.keys()), index=0)
 
-    st.subheader("🧒🏽 Choose your age group:")
+    st.subheader("👤 Choose your age group:")
     age_choice = st.selectbox("Pick your group:", ["Select Age Group", "10-13", "14-17", "18+"], index=0)
 
     if st.button("✅ Start Quiz"):
@@ -115,7 +116,6 @@ elif st.session_state.index < len(st.session_state.questions):
             st.session_state.feedback.append(feedback)
             st.session_state.answered = True
 
-    # Show feedback
     if st.session_state.answered:
         st.markdown("### 💬 MyPadi's Tip:")
         st.info(st.session_state.ai_response)
@@ -155,7 +155,6 @@ else:
             except:
                 st.warning("⚠️ Couldn't generate summary.")
 
-    # Final actions
     col1, col2 = st.columns([1, 1])
     with col1:
         if st.button("🔁 Restart"):
@@ -170,9 +169,7 @@ else:
             "💬 Chat with MyPadi</button></a>",
             unsafe_allow_html=True
         )
-        
+
+# 🟢 Optional main() definition
 def main():
-   
-    # rest of your quiz logic
-    if __name__ == "__main__":
-        main()
+    pass  # No need to rerun main() inside this script since it's not used as a module
