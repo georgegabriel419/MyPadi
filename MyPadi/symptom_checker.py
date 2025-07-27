@@ -105,20 +105,22 @@ def main():
             if category == "STI" and "High" in risk_level:
                 prompt = f"""
                 You are MyPadi, a helpful sexual health companion for Nigerian youth.
-
+                
                 A user just completed an STI symptom quiz with a HIGH risk score.
                 Their answers:
-
+                
                 {user_summary}
-
+                
                 1. Based on symptoms, suggest a **possible STI** they may have (e.g., Chlamydia, Gonorrhea, etc.).
                 2. Explain the risk in a friendly, easy-to-understand way.
                 3. Give 1–2 **next steps** (like testing or talking to a clinic).
                 4. End with an **encouraging message** and 1 helpful follow-up question.
-
+                
+                ⚠️ Make sure your entire reply is no more than 150 words. Do not exceed this.
+                
                 Avoid judgment. Be gentle, relatable, and supportive.
-                Also make the summary very short. No too much words. It should be less than 100 words in total.
                 """
+
             else:
                 prompt = f"""
                 You are MyPadi — a friendly and caring health buddy for teens and young adults.
