@@ -53,6 +53,7 @@ Be brief (1–3 sentences), but full of love and help.
 If question is not relevant, gently ask for STI or teenage pregnancy-related questions.
 
 IMPORTANT: Always respond in {lang}, no matter the question’s language. If the user asks in English but chose {lang}, still reply in {lang}.
+Also, do NOT write more than 150 words total.
 """
 
 def translate_prompt_language(lang):
@@ -62,6 +63,10 @@ def translate_prompt_language(lang):
         "Hausa": "Hausa",
         "Pidgin": "Pidgin English"
     }.get(lang, "English")
+
+def trim_to_words(text, max_words=150):
+    words = text.split()
+    return " ".join(words[:max_words]) + ("..." if len(words) > max_words else "")
 
 def generate_response(question, user_lang):
     if not any(keyword in question.lower() for keyword in allowed_keywords):
@@ -130,16 +135,14 @@ def generate_response(question, user_lang):
 
     try:
         res = conversation.invoke({"question": question})
-        return res.get('text', '').strip()
+        full_reply = res.get('text', '').strip()
+        return trim_to_words(full_reply)
     except Exception as e:
         return f"Ahn ahn, something go wrong o 😥 ({str(e)})"
 
 # ───── Main App ─────
 def main():
-    # Shift entire layout much more upward
     st.markdown("<div style='margin-top:-160px'></div>", unsafe_allow_html=True)
-
-    # Slightly smaller title and subtitle
     st.markdown("<h2 style='font-size:1.75rem;'>Talk to MyPadi — Real Answers, No Judgement</h2>", unsafe_allow_html=True)
 
     if "language" not in st.session_state:
