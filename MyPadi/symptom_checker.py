@@ -128,7 +128,7 @@ def main():
                 3. Give **next steps** (like testing or talking to a clinic).
                 4. End with an **encouraging message** and helpful follow-up question.
 
-                
+                Your response should be structured well. Use bulletin where necessary. Don't make it essay format. 
 
                 Avoid judgment. Be gentle, relatable, and supportive.
                 """
@@ -143,7 +143,7 @@ def main():
                 2. Give, practical **next steps** (like “get tested”, “rest”, or “see a clinic”).
                 3. Share an encouraging, kind **emotional support** message.
                 4. Suggest one gentle **follow-up question** to keep them informed or safe.
-
+                Your response should be structured well. use bulletin where necessary. 
                 Use a casual, warm tone. No big words or judgment — just gist like you're their best friend.
 
                 Their answers:
