@@ -9,6 +9,8 @@ from style import apply_custom_styles
 apply_custom_styles()
 
 # ✅ Global style
+st.set_page_config(page_title="Smart Symptom Checker", page_icon="🩺")
+
 st.markdown("""
     <style>
     .stApp {
@@ -34,15 +36,10 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# ✅ Page config
-st.set_page_config(page_title="Smart Symptom Checker", page_icon="🩺")
-
-def trim_to_words(text, limit=150):
+def trim_to_words(text, limit=500):
     words = text.split()
     return ' '.join(words[:limit]) + ('...' if len(words) > limit else '')
 
-<<<<<<< HEAD
-=======
 def synthesize_tts(text, lang="en"):
     try:
         spitch_client = Spitch()
@@ -52,14 +49,13 @@ def synthesize_tts(text, lang="en"):
             voice="femi"
         )
         return response.read()
-    except Exception as e:
+    except Exception:
         return None
 
->>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
 def main():
     load_dotenv()
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
-    SPITCH_API_KEY = os.getenv("SPITCH_API_KEY")  # Optional but checked
+    SPITCH_API_KEY = os.getenv("SPITCH_API_KEY")  # Optional
 
     if not GOOGLE_API_KEY:
         st.error("❌ Google API key is missing. Add it to your .env file as GOOGLE_API_KEY.")
@@ -68,11 +64,10 @@ def main():
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
         model = genai.GenerativeModel(model_name="models/gemini-2.0-flash")
-    except Exception as e:
+    except Exception:
         st.error("⚠️ Failed to initialize Gemini model.")
         return
 
-    # Initialize session state
     for key, default in {
         "question_index": 0,
         "score": 0,
@@ -116,32 +111,25 @@ def main():
         st.markdown(f"**Your Risk Level:** {risk_level}")
         st.markdown(f"**Score:** {st.session_state.score} / {max_score} → {percentage:.1f}%")
 
-        # Gemini response
         with st.spinner("Thinking like your bestie... 🤔"):
             user_summary = "\n".join(st.session_state.answers)
 
             if category == "STI" and "High" in risk_level:
                 prompt = f"""
                 You are MyPadi, a helpful sexual health companion for Nigerian youth.
-                
+
                 A user just completed an STI symptom quiz with a HIGH risk score.
                 Their answers:
-                
+
                 {user_summary}
-                
+
                 1. Based on symptoms, suggest a **possible STI** they may have (e.g., Chlamydia, Gonorrhea, etc.).
                 2. Explain the risk in a friendly, easy-to-understand way.
-                3. Give 1–2 **next steps** (like testing or talking to a clinic).
-                4. End with an **encouraging message** and 1 helpful follow-up question.
-<<<<<<< HEAD
-                
-                ⚠️ Make sure your entire reply is no more than 150 words. Do not exceed this.
-                
-=======
+                3. Give **next steps** (like testing or talking to a clinic).
+                4. End with an **encouraging message** and helpful follow-up question.
 
-                ⚠️ Make sure your entire reply is no more than 150 words. Do not exceed this.
+                
 
->>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
                 Avoid judgment. Be gentle, relatable, and supportive.
                 """
             else:
@@ -152,7 +140,7 @@ def main():
                 Based on their answers:
 
                 1. Explain their possible **risk level** (don’t just repeat score).
-                2. Give 1–2 short, practical **next steps** (like “get tested”, “rest”, or “see a clinic”).
+                2. Give, practical **next steps** (like “get tested”, “rest”, or “see a clinic”).
                 3. Share an encouraging, kind **emotional support** message.
                 4. Suggest one gentle **follow-up question** to keep them informed or safe.
 
@@ -164,23 +152,15 @@ def main():
 
             try:
                 response = model.generate_content(prompt)
-<<<<<<< HEAD
-                trimmed = trim_to_words(response.text.strip(), 150)
-                st.markdown("### 💬 MyPadi's Summary")
-                st.success(trimmed)
-=======
-                trimmed = trim_to_words(response.text.strip(), 400)
-
+                trimmed = trim_to_words(response.text.strip(), 500)
                 st.markdown("### 💬 MyPadi's Summary")
                 st.success(trimmed)
 
-                # ✅ Generate and play TTS if API key exists
+                # Play audio feedback
                 if SPITCH_API_KEY:
-                    audio_bytes = synthesize_tts(trimmed, lang="en")
+                    audio_bytes = synthesize_tts(trimmed)
                     if audio_bytes:
                         st.audio(audio_bytes, format="audio/wav")
-
->>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
             except Exception as e:
                 st.error("⚠️ Failed to generate AI summary.")
                 st.exception(e)
