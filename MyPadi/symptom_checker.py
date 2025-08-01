@@ -1,9 +1,11 @@
-import streamlit as st
 import os
+import streamlit as st
 from dotenv import load_dotenv
 import google.generativeai as genai
+from spitch import Spitch
 from symptom_data import sti_questions, pregnancy_questions
 from style import apply_custom_styles
+
 apply_custom_styles()
 
 # ✅ Global style
@@ -12,13 +14,11 @@ st.markdown("""
     .stApp {
         background-color: #f8f5ff;
     }
-
     .stMarkdown, .stText, .stTitle, .stHeader, .stSubheader, .stCaption,
     .stTextInput > label, .stRadio > label, .stSelectbox > label,
     .stTextArea > label, .stNumberInput > label, .stCheckbox > label {
         color: black !important;
     }
-
     .stButton>button {
         background-color: #7e57c2;
         color: white !important;
@@ -28,7 +28,6 @@ st.markdown("""
         font-weight: bold;
         transition: background-color 0.2s ease;
     }
-
     .stButton>button:hover {
         background-color: #693cb3;
     }
@@ -42,9 +41,25 @@ def trim_to_words(text, limit=150):
     words = text.split()
     return ' '.join(words[:limit]) + ('...' if len(words) > limit else '')
 
+<<<<<<< HEAD
+=======
+def synthesize_tts(text, lang="en"):
+    try:
+        spitch_client = Spitch()
+        response = spitch_client.speech.generate(
+            text=text,
+            language=lang,
+            voice="femi"
+        )
+        return response.read()
+    except Exception as e:
+        return None
+
+>>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
 def main():
     load_dotenv()
     GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
+    SPITCH_API_KEY = os.getenv("SPITCH_API_KEY")  # Optional but checked
 
     if not GOOGLE_API_KEY:
         st.error("❌ Google API key is missing. Add it to your .env file as GOOGLE_API_KEY.")
@@ -118,9 +133,15 @@ def main():
                 2. Explain the risk in a friendly, easy-to-understand way.
                 3. Give 1–2 **next steps** (like testing or talking to a clinic).
                 4. End with an **encouraging message** and 1 helpful follow-up question.
+<<<<<<< HEAD
                 
                 ⚠️ Make sure your entire reply is no more than 150 words. Do not exceed this.
                 
+=======
+
+                ⚠️ Make sure your entire reply is no more than 150 words. Do not exceed this.
+
+>>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
                 Avoid judgment. Be gentle, relatable, and supportive.
                 """
             else:
@@ -143,9 +164,23 @@ def main():
 
             try:
                 response = model.generate_content(prompt)
+<<<<<<< HEAD
                 trimmed = trim_to_words(response.text.strip(), 150)
                 st.markdown("### 💬 MyPadi's Summary")
                 st.success(trimmed)
+=======
+                trimmed = trim_to_words(response.text.strip(), 400)
+
+                st.markdown("### 💬 MyPadi's Summary")
+                st.success(trimmed)
+
+                # ✅ Generate and play TTS if API key exists
+                if SPITCH_API_KEY:
+                    audio_bytes = synthesize_tts(trimmed, lang="en")
+                    if audio_bytes:
+                        st.audio(audio_bytes, format="audio/wav")
+
+>>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
             except Exception as e:
                 st.error("⚠️ Failed to generate AI summary.")
                 st.exception(e)

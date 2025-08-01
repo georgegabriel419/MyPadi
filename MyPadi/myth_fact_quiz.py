@@ -1,4 +1,5 @@
 import streamlit as st
+<<<<<<< HEAD
 
 def main():
     st.set_page_config(page_title="Myth vs Fact Quiz", page_icon="🧠")  # ✅ First Streamlit call
@@ -25,6 +26,79 @@ def main():
     # Load API Key
     load_dotenv()
     GENAI_API_KEY = os.getenv("GOOGLE_API_KEY")
+=======
+import os
+from dotenv import load_dotenv
+import google.generativeai as genai
+from spitch import Spitch
+from myth_data import (
+    quiz_data_english,
+    quiz_data_yoruba,
+    quiz_data_igbo,
+    quiz_data_hausa,
+    quiz_data_pidgin
+)
+from style import apply_custom_styles
+
+apply_custom_styles()
+
+# ✅ Global style
+st.set_page_config(page_title="Myth vs Fact Quiz", page_icon="🧠")
+
+st.markdown("""
+    <style>
+    .stApp {
+        background-color: #f8f5ff;
+    }
+    .stMarkdown, .stText, .stTitle, .stHeader, .stSubheader, .stCaption,
+    .stTextInput > label, .stRadio > label, .stSelectbox > label,
+    .stTextArea > label, .stNumberInput > label, .stCheckbox > label {
+        color: black !important;
+    }
+    .stButton>button {
+        background-color: #7e57c2;
+        color: white !important;
+        border: none;
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: bold;
+        transition: background-color 0.2s ease;
+    }
+    .stButton>button:hover {
+        background-color: #693cb3;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# ───── TTS Helper ─────
+def trim_to_words(text, max_words=300):
+    words = text.split()
+    return " ".join(words[:max_words]) + ("..." if len(words) > max_words else "")
+
+def get_lang_code(lang):
+    return {
+        "English": "en",
+        "Yoruba": "yo",
+        "Igbo": "ig",
+        "Hausa": "ha"
+    }.get(lang, None)
+
+def synthesize_tts(text, lang_code):
+    if not lang_code:
+        return None
+    try:
+        client = Spitch()
+        response = client.speech.generate(text=text, language=lang_code, voice="femi")
+        return response.read()
+    except:
+        return None
+
+def main():
+    load_dotenv()
+    GENAI_API_KEY = os.getenv("GOOGLE_API_KEY")
+    SPITCH_API_KEY = os.getenv("SPITCH_API_KEY")
+
+>>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
     genai.configure(api_key=GENAI_API_KEY)
     model = genai.GenerativeModel("models/gemini-2.0-flash")
 
@@ -71,6 +145,10 @@ def main():
                 st.session_state.language = readable_lang
                 st.session_state.age_group = age_choice
                 all_questions = [q for q in data if q["age_group"] == age_choice]
+<<<<<<< HEAD
+=======
+                import random
+>>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
                 random.shuffle(all_questions)
                 st.session_state.questions = all_questions[:10]
                 st.session_state.started = True
@@ -109,7 +187,11 @@ def main():
                         ⚠️ Your full response must be under 150 words.
                         """
                         response = model.generate_content(prompt)
+<<<<<<< HEAD
                         feedback = trim_to_words(response.text.strip(), 150)
+=======
+                        feedback = trim_to_words(response.text.strip(), 400)
+>>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
                     except:
                         feedback = "⚠️ Feedback not available."
 
@@ -153,8 +235,22 @@ def main():
                     """
                     result = model.generate_content(prompt)
                     summary = trim_to_words(result.text.strip(), 150)
+<<<<<<< HEAD
                     st.markdown("### 🧠 Smart Tip Summary:")
                     st.success(summary)
+=======
+
+                    st.markdown("### 🧠 Smart Tip Summary:")
+                    st.success(summary)
+
+                    # ✅ TTS Playback
+                    lang_code = get_lang_code(st.session_state.language)
+                    if lang_code and SPITCH_API_KEY:
+                        audio = synthesize_tts(summary, lang_code)
+                        if audio:
+                            st.audio(audio, format="audio/wav")
+
+>>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
                 except:
                     st.warning("⚠️ Couldn't generate summary.")
 

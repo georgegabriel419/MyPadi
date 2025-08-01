@@ -130,4 +130,8 @@ st.markdown("""
 <div style='text-align:center; font-size:0.75rem; margin-top:2rem; color:#777;'>
     © 2025 MyPadi. Built with 💜 for Nigeria's youth.
 </div>
+<<<<<<< HEAD
 """, unsafe_allow_html=True)
+=======
+""", unsafe_allow_html=True)
+>>>>>>> 73b6f630 (Updated MyPadi project with latest changes which has tts fro spitch)
