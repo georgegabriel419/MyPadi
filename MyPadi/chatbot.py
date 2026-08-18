@@ -26,7 +26,14 @@ SPITCH_API_KEY = os.getenv("SPITCH_API_KEY")
 
 pc = Pinecone(api_key=PINECONE_API_KEY)
 pinecone_index = pc.Index("sti-teenage-preg")
-embed_model = GoogleGenerativeAIEmbeddings(model="models/embedding-001", google_api_key=GOOGLE_API_KEY)
+
+index_info = pc.describe_index("sti-teenage-preg")
+print("PINECONE INDEX INFO:", index_info)
+
+embed_model = GoogleGenerativeAIEmbeddings(
+    model="models/gemini-embedding-001",
+    google_api_key=GOOGLE_API_KEY
+)
 spitch_client = Spitch()
 
 # ───── Greetings ─────
