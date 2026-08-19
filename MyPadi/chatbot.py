@@ -4,8 +4,6 @@ import streamlit as st
 from dotenv import load_dotenv
 from google import genai
 from google.genai import types
-
-from langchain_google_genai import ChatGoogleGenerativeAI
 from pinecone import Pinecone
 
 from keywords import allowed_keywords
@@ -37,8 +35,11 @@ apply_custom_styles()
 
 def get_secret(name):
     """
-    Get secret from Streamlit Secrets first.
-    Fall back to .env for local development.
+    Streamlit Cloud:
+        Gets value from st.secrets
+
+    Local development:
+        Falls back to .env
     """
 
     try:
@@ -53,23 +54,29 @@ def get_secret(name):
     return os.getenv(name)
 
 
-PINECONE_API_KEY = get_secret("PINECONE_API_KEY")
 GOOGLE_API_KEY = get_secret("GOOGLE_API_KEY")
+PINECONE_API_KEY = get_secret("PINECONE_API_KEY")
 
 
 # ============================================================
-# API KEY CHECK
+# MODEL SETTINGS
 # ============================================================
 
-if not PINECONE_API_KEY:
-    st.error("PINECONE_API_KEY is missing.")
+# Gemini generation model
+GENERATION_MODEL = "gemini-3.6-flash"
 
-if not GOOGLE_API_KEY:
-    st.error("GOOGLE_API_KEY is missing.")
+# Gemini embedding model
+EMBEDDING_MODEL = "gemini-embedding-001"
+
+# MUST match your Pinecone index dimension
+EMBEDDING_DIMENSION = 768
+
+# Pinecone index
+PINECONE_INDEX_NAME = "sti-teenage-preg"
 
 
 # ============================================================
-# INITIALIZE GOOGLE GENAI CLIENT
+# INITIALIZE GOOGLE CLIENT
 # ============================================================
 
 google_client = None
@@ -82,12 +89,14 @@ if GOOGLE_API_KEY:
             api_key=GOOGLE_API_KEY
         )
 
-        print("GOOGLE GENAI CLIENT INITIALIZED")
+        print(
+            "GOOGLE GENAI CLIENT INITIALIZED"
+        )
 
     except Exception as e:
 
         print(
-            "GOOGLE GENAI INITIALIZATION ERROR:",
+            "GOOGLE CLIENT INITIALIZATION ERROR:",
             repr(e)
         )
 
@@ -109,17 +118,32 @@ if PINECONE_API_KEY:
         )
 
         pinecone_index = pc.Index(
-            "sti-teenage-preg"
-        )
-
-        index_info = pc.describe_index(
-            "sti-teenage-preg"
+            PINECONE_INDEX_NAME
         )
 
         print(
-            "PINECONE INDEX INFO:",
-            index_info
+            "PINECONE INDEX INITIALIZED:",
+            PINECONE_INDEX_NAME
         )
+
+        # Diagnostic information
+        try:
+
+            index_info = pc.describe_index(
+                PINECONE_INDEX_NAME
+            )
+
+            print(
+                "PINECONE INDEX INFO:",
+                index_info
+            )
+
+        except Exception as e:
+
+            print(
+                "PINECONE DESCRIBE ERROR:",
+                repr(e)
+            )
 
     except Exception as e:
 
@@ -159,43 +183,84 @@ language_greetings = {
 # ============================================================
 
 SYSTEM_PROMPT = """
-You are MyPadi — a friendly, caring and youth-friendly health
-information assistant.
+You are MyPadi — a warm, friendly and non-judgmental sexual and
+reproductive health information chatbot for young people.
 
-You provide accurate, simple and non-judgmental information
-about sexually transmitted infections (STIs) and teenage
-pregnancy.
+Your main topics include:
 
-The user selected the language: {lang}
+- HIV
+- STIs
+- STI prevention
+- STI testing
+- STI symptoms
+- STI treatment information
+- Teenage pregnancy
+- Pregnancy prevention
+- Reproductive health
+- Sexual health education
 
-IMPORTANT LANGUAGE RULE:
+IMPORTANT RAG RULE:
+
+The information retrieved from the trusted documents below is the
+primary source of truth for your answer.
+
+Use the retrieved context to answer the user's question.
+
+Do NOT invent information that is not supported by the retrieved
+context when the question requires information from the documents.
+
+If the retrieved documents do not contain enough information to
+answer the question confidently, say that you do not have enough
+information in the available resources rather than making something
+up.
+
+You can provide a short general explanation when appropriate, but
+do not contradict the trusted retrieved information.
+
+Be:
+
+- Warm
+- Friendly
+- Youth-friendly
+- Non-judgmental
+- Clear
+- Easy to understand
+
+Do not shame the user.
+
+Do not claim to be a doctor.
+
+Do not diagnose the user.
+
+If a user describes symptoms, provide general educational information
+and encourage appropriate professional healthcare support.
+
+The selected language is:
+
+{lang}
+
 Respond in {lang}.
 
-Do not unnecessarily mix languages.
+For English:
+Use natural, simple English.
 
-Use simple, natural, conversational language.
+For Pidgin:
+Use natural Nigerian Pidgin.
 
-Keep responses concise, usually 1–3 short paragraphs.
+For Yoruba, Igbo and Hausa:
+Use natural conversational language.
 
-Do not invent medical information.
+Keep the response concise, normally around 1–3 short paragraphs,
+unless the question requires more explanation.
 
-Use the trusted information retrieved from the knowledge base
-when it is relevant.
+TRUSTED RETRIEVED INFORMATION:
 
-TRUSTED INFORMATION:
-{doc_content}
-
-If the user's question is unrelated to STIs or teenage
-pregnancy, politely redirect them toward those topics.
-
-If the retrieved information does not contain the answer,
-use your general medical knowledge carefully and avoid
-making unsupported claims.
+{context}
 """
 
 
 # ============================================================
-# FALLBACK RESPONSES
+# FALLBACK RESPONSE
 # ============================================================
 
 def fallback_response(lang):
@@ -225,7 +290,7 @@ def fallback_response(lang):
 
 
 # ============================================================
-# OFF-TOPIC RESPONSES
+# OFF-TOPIC RESPONSE
 # ============================================================
 
 def off_topic_response(lang):
@@ -233,24 +298,38 @@ def off_topic_response(lang):
     responses = {
 
         "English":
-            "Hmm bestie 🫶🏾 — I can only help with STI and teenage pregnancy matters. Ask me something related to that!",
+            "Hmm bestie 🫶🏾 — I mainly help with STI, HIV, pregnancy and reproductive health questions. Ask me something about those!",
 
         "Yoruba":
-            "Ore mi 🫶🏾 — Mo le ran e lowo lori koko STI ati oyun lasiko omode nikan.",
+            "Ore mi 🫶🏾 — Mo maa n ran eniyan lowo lori STI, HIV, oyun ati ilera ibisi.",
 
         "Igbo":
-            "Nwanne 🫶🏾 — Ana m enyere maka STIs na ime nwa n'oge ntorobia.",
+            "Nwanne 🫶🏾 — Ana m enyere aka karịsịa na STI, HIV, ime nwa na ahụike ọmụmụ.",
 
         "Hausa":
-            "Kawaye 🫶🏾 — Tambayoyina na game da STI ko ciki a kuruciya ne kawai.",
+            "Kawaye 🫶🏾 — Ina taimakawa musamman game da STI, HIV, ciki da lafiyar haihuwa.",
 
         "Pidgin":
-            "Padi mi 🫶🏾 — Na only STI or teenage belle I sabi talk about oh."
+            "Padi mi 🫶🏾 — Na STI, HIV, belle matter and reproductive health I dey focus on."
     }
 
     return responses.get(
         lang,
         responses["English"]
+    )
+
+
+# ============================================================
+# CHECK ALLOWED TOPICS
+# ============================================================
+
+def is_allowed_topic(question):
+
+    question_lower = question.lower()
+
+    return any(
+        keyword.lower() in question_lower
+        for keyword in allowed_keywords
     )
 
 
@@ -276,10 +355,10 @@ def trim_to_words(text, max_words=300):
 
 
 # ============================================================
-# GOOGLE EMBEDDING
+# CREATE QUERY EMBEDDING
 # ============================================================
 
-def create_embedding(text):
+def create_query_embedding(question):
 
     if google_client is None:
 
@@ -287,30 +366,45 @@ def create_embedding(text):
             "Google GenAI client is not initialized."
         )
 
-    print("Starting Google embedding...")
 
-    result = google_client.models.embed_content(
+    print(
+        "Creating query embedding..."
+    )
 
-        model="gemini-embedding-001",
+    print(
+        "Embedding model:",
+        EMBEDDING_MODEL
+    )
 
-        contents=text,
+
+    response = google_client.models.embed_content(
+
+        model=EMBEDDING_MODEL,
+
+        contents=question,
 
         config=types.EmbedContentConfig(
 
             task_type="RETRIEVAL_QUERY",
 
-            output_dimensionality=768
-
+            output_dimensionality=EMBEDDING_DIMENSION
         )
     )
 
-    if not result.embeddings:
+
+    # --------------------------------------------------------
+    # Extract embedding
+    # --------------------------------------------------------
+
+    if not response.embeddings:
 
         raise RuntimeError(
             "Google returned no embedding."
         )
 
-    embedding = result.embeddings[0].values
+
+    embedding = response.embeddings[0].values
+
 
     if not embedding:
 
@@ -318,19 +412,36 @@ def create_embedding(text):
             "Google returned an empty embedding."
         )
 
+
     embedding = [
         float(value)
         for value in embedding
     ]
 
-    print(
-        "Embedding successful."
-    )
+
+    # --------------------------------------------------------
+    # Verify dimension
+    # --------------------------------------------------------
 
     print(
-        "Embedding dimension:",
+        "Query embedding dimension:",
         len(embedding)
     )
+
+
+    if len(embedding) != EMBEDDING_DIMENSION:
+
+        raise RuntimeError(
+            f"Embedding dimension mismatch. "
+            f"Expected {EMBEDDING_DIMENSION}, "
+            f"received {len(embedding)}."
+        )
+
+
+    print(
+        "QUERY EMBEDDING SUCCESSFUL"
+    )
+
 
     return embedding
 
@@ -339,319 +450,328 @@ def create_embedding(text):
 # SEARCH PINECONE
 # ============================================================
 
-def search_knowledge_base(question):
+def retrieve_context(question):
 
     if pinecone_index is None:
 
-        print(
-            "Pinecone unavailable."
-        )
-
-        return "No additional trusted information was retrieved."
-
-
-    try:
-
-        # -----------------------------------------------
-        # CREATE QUERY EMBEDDING
-        # -----------------------------------------------
-
-        query_embedding = create_embedding(
-            question
+        raise RuntimeError(
+            "Pinecone index is not initialized."
         )
 
 
-        # -----------------------------------------------
-        # QUERY PINECONE
-        # -----------------------------------------------
+    # --------------------------------------------------------
+    # Create query vector
+    # --------------------------------------------------------
 
-        results = pinecone_index.query(
+    query_vector = create_query_embedding(
+        question
+    )
 
-            vector=query_embedding,
 
-            top_k=3,
+    # --------------------------------------------------------
+    # Semantic search
+    # --------------------------------------------------------
 
-            include_metadata=True
+    print(
+        "Searching Pinecone..."
+    )
+
+
+    results = pinecone_index.query(
+
+        vector=query_vector,
+
+        top_k=3,
+
+        include_metadata=True
+    )
+
+
+    matches = results.get(
+        "matches",
+        []
+    )
+
+
+    print(
+        "PINECONE MATCHES:",
+        len(matches)
+    )
+
+
+    # --------------------------------------------------------
+    # Extract document text
+    # --------------------------------------------------------
+
+    documents = []
+
+
+    for match in matches:
+
+        metadata = match.get(
+            "metadata",
+            {}
         )
 
 
-        matches = results.get(
-            "matches",
-            []
+        text = metadata.get(
+            "text",
+            ""
         )
 
 
-        print(
-            "Pinecone matches:",
-            len(matches)
-        )
+        if text:
 
-
-        documents = []
-
-
-        for match in matches:
-
-            metadata = match.get(
-                "metadata",
-                {}
+            score = match.get(
+                "score",
+                0
             )
 
 
-            text = metadata.get(
-                "text",
-                ""
+            documents.append(
+                {
+                    "text": text,
+                    "score": score
+                }
             )
 
 
-            if text:
-
-                documents.append(
-                    text
-                )
-
-
-        if documents:
-
-            print(
-                "Pinecone context retrieved successfully."
-            )
-
-            return "\n\n".join(
-                documents
-            )
-
+    if not documents:
 
         print(
-            "Pinecone returned no usable text."
+            "NO DOCUMENT TEXT FOUND IN PINECONE"
         )
 
-        return "No additional trusted information was retrieved."
+        return ""
 
 
-    except Exception as e:
+    # --------------------------------------------------------
+    # Build context
+    # --------------------------------------------------------
 
-        print(
-            "PINECONE SEARCH ERROR:",
-            repr(e)
+    context_parts = []
+
+
+    for i, document in enumerate(
+        documents,
+        start=1
+    ):
+
+        context_parts.append(
+
+            f"""
+SOURCE {i}
+
+Relevance score:
+{document["score"]}
+
+Content:
+{document["text"]}
+"""
         )
 
-        return "No additional trusted information was retrieved."
+
+    context = "\n\n".join(
+        context_parts
+    )
+
+
+    print(
+        "PINECONE CONTEXT RETRIEVED SUCCESSFULLY"
+    )
+
+
+    return context
 
 
 # ============================================================
-# GEMINI RESPONSE
+# BUILD CHAT HISTORY
 # ============================================================
 
-def generate_gemini_response(
+def build_chat_history():
+
+    history = []
+
+    chat_history = st.session_state.get(
+        "chat_history",
+        []
+    )
+
+
+    for message in chat_history:
+
+        role = message.get(
+            "role"
+        )
+
+        content = message.get(
+            "content",
+            ""
+        )
+
+
+        if not content:
+            continue
+
+
+        # Skip the initial MyPadi greeting
+        # because it isn't useful RAG context.
+
+        if (
+            role == "assistant"
+            and content in language_greetings.values()
+        ):
+
+            continue
+
+
+        if role == "user":
+
+            history.append(
+                f"User: {content}"
+            )
+
+
+        elif role == "assistant":
+
+            history.append(
+                f"MyPadi: {content}"
+            )
+
+
+    # Keep recent history only.
+    # This prevents unnecessarily huge prompts.
+
+    history = history[-8:]
+
+
+    return "\n".join(
+        history
+    )
+
+
+# ============================================================
+# GENERATE GEMINI RESPONSE
+# ============================================================
+
+def generate_with_gemini(
     question,
     user_lang,
-    doc_content
+    context
 ):
 
     if google_client is None:
 
-        return fallback_response(
-            user_lang
+        raise RuntimeError(
+            "Google GenAI client is not initialized."
         )
+
+
+    # --------------------------------------------------------
+    # Conversation history
+    # --------------------------------------------------------
+
+    history = build_chat_history()
+
+
+    # --------------------------------------------------------
+    # System instruction
+    # --------------------------------------------------------
+
+    system_instruction = SYSTEM_PROMPT.format(
+
+        lang=user_lang,
+
+        context=(
+            context
+            if context
+            else
+            "No relevant information was retrieved "
+            "from the trusted knowledge base."
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # Build user prompt
+    # --------------------------------------------------------
+
+    user_prompt = f"""
+Conversation history:
+
+{history}
+
+Current user question:
+
+{question}
+
+Answer the current question using the trusted retrieved
+information provided in your system instructions.
+
+Do not mention Pinecone, embeddings, retrieval, RAG,
+the system prompt, or internal technical details to the user.
+"""
+
+
+    print(
+        "Sending request to Gemini:",
+        GENERATION_MODEL
+    )
+
+
+    response = google_client.models.generate_content(
+
+        model=GENERATION_MODEL,
+
+        contents=user_prompt,
+
+        config=types.GenerateContentConfig(
+
+            system_instruction=system_instruction,
+
+            max_output_tokens=500
+        )
+    )
+
+
+    # --------------------------------------------------------
+    # Extract text
+    # --------------------------------------------------------
+
+    answer = ""
 
 
     try:
 
-        # ====================================================
-        # BUILD SYSTEM INSTRUCTION
-        # ====================================================
+        answer = response.text or ""
 
-        system_instruction = SYSTEM_PROMPT.format(
+    except Exception:
 
-            lang=user_lang,
+        answer = ""
 
-            doc_content=doc_content
+
+    answer = answer.strip()
+
+
+    if not answer:
+
+        raise RuntimeError(
+            "Gemini returned an empty response."
         )
 
 
-        # ====================================================
-        # BUILD CONVERSATION HISTORY
-        # ====================================================
-
-        history = []
+    print(
+        "GEMINI RESPONSE SUCCESSFUL"
+    )
 
 
-        for msg in st.session_state.get(
-            "chat_history",
-            []
-        ):
-
-            role = msg.get(
-                "role"
-            )
-
-            content = msg.get(
-                "content",
-                ""
-            )
-
-
-            # Don't include the greeting as
-            # unnecessary model context.
-
-            if not content:
-                continue
-
-
-            if role == "user":
-
-                history.append(
-                    f"User: {content}"
-                )
-
-
-            elif role == "assistant":
-
-                history.append(
-                    f"MyPadi: {content}"
-                )
-
-
-        previous_conversation = "\n".join(
-            history[-10:]
-        )
-
-
-        # ====================================================
-        # FINAL PROMPT
-        # ====================================================
-
-        final_prompt = f"""
-{system_instruction}
-
-PREVIOUS CONVERSATION:
-{previous_conversation}
-
-CURRENT USER QUESTION:
-{question}
-
-Now answer the user's current question.
-"""
-
-
-        print(
-            "Starting Gemini response generation..."
-        )
-
-
-        # ====================================================
-        # GEMINI
-        # ====================================================
-
-        chat = ChatGoogleGenerativeAI(
-            model="gemini-3.6-flash",
-            google_api_key=GOOGLE_API_KEY
-        )
-
-
-        response = chat.invoke(
-            final_prompt
-        )
-
-
-        # ====================================================
-        # EXTRACT TEXT
-        # ====================================================
-
-        full_text = ""
-
-
-        if hasattr(
-            response,
-            "content"
-        ):
-
-            full_text = response.content
-
-
-        elif isinstance(
-            response,
-            str
-        ):
-
-            full_text = response
-
-
-        if isinstance(
-            full_text,
-            list
-        ):
-
-            parts = []
-
-            for item in full_text:
-
-                if isinstance(
-                    item,
-                    dict
-                ):
-
-                    if "text" in item:
-
-                        parts.append(
-                            item["text"]
-                        )
-
-                elif isinstance(
-                    item,
-                    str
-                ):
-
-                    parts.append(
-                        item
-                    )
-
-            full_text = " ".join(
-                parts
-            )
-
-
-        full_text = str(
-            full_text
-        ).strip()
-
-
-        if not full_text:
-
-            print(
-                "Gemini returned an empty response."
-            )
-
-            return fallback_response(
-                user_lang
-            )
-
-
-        print(
-            "Gemini response generated successfully."
-        )
-
-
-        return trim_to_words(
-            full_text
-        )
-
-
-    except Exception as e:
-
-        print(
-            "GEMINI ERROR:",
-            repr(e)
-        )
-
-        return fallback_response(
-            user_lang
-        )
+    return trim_to_words(
+        answer
+    )
 
 
 # ============================================================
-# GENERATE COMPLETE RESPONSE
+# COMPLETE RAG PIPELINE
 # ============================================================
 
 def generate_response(
@@ -659,19 +779,12 @@ def generate_response(
     user_lang
 ):
 
-    question_lower = question.lower()
+    # --------------------------------------------------------
+    # Check topic
+    # --------------------------------------------------------
 
-
-    # ========================================================
-    # TOPIC FILTER
-    # ========================================================
-
-    if not any(
-
-        keyword.lower() in question_lower
-
-        for keyword in allowed_keywords
-
+    if not is_allowed_topic(
+        question
     ):
 
         return off_topic_response(
@@ -679,27 +792,88 @@ def generate_response(
         )
 
 
-    # ========================================================
-    # RETRIEVE KNOWLEDGE
-    # ========================================================
+    # --------------------------------------------------------
+    # Check Google
+    # --------------------------------------------------------
 
-    doc_content = search_knowledge_base(
-        question
-    )
+    if google_client is None:
+
+        print(
+            "GOOGLE CLIENT UNAVAILABLE"
+        )
+
+        return fallback_response(
+            user_lang
+        )
 
 
-    # ========================================================
-    # GENERATE ANSWER
-    # ========================================================
+    # --------------------------------------------------------
+    # Check Pinecone
+    # --------------------------------------------------------
 
-    return generate_gemini_response(
+    if pinecone_index is None:
 
-        question=question,
+        print(
+            "PINECONE INDEX UNAVAILABLE"
+        )
 
-        user_lang=user_lang,
+        return fallback_response(
+            user_lang
+        )
 
-        doc_content=doc_content
-    )
+
+    # --------------------------------------------------------
+    # RETRIEVAL
+    # --------------------------------------------------------
+
+    try:
+
+        context = retrieve_context(
+            question
+        )
+
+
+    except Exception as e:
+
+        print(
+            "RAG RETRIEVAL ERROR:",
+            repr(e)
+        )
+
+        return fallback_response(
+            user_lang
+        )
+
+
+    # --------------------------------------------------------
+    # GENERATION
+    # --------------------------------------------------------
+
+    try:
+
+        answer = generate_with_gemini(
+
+            question=question,
+
+            user_lang=user_lang,
+
+            context=context
+        )
+
+
+        return answer
+
+
+    except Exception as e:
+
+        print(
+            "GEMINI GENERATION ERROR:",
+            repr(e)
+        )
+
+        return fallback_response(
+            user_lang
+        )
 
 
 # ============================================================
@@ -754,19 +928,16 @@ def main():
 
             st.session_state.language = lang
 
-
             st.session_state.chat_history = [
 
                 {
-                    "role":
-                    "assistant",
+                    "role": "assistant",
 
                     "content":
-                    language_greetings[lang]
+                        language_greetings[lang]
                 }
 
             ]
-
 
             st.rerun()
 
@@ -775,7 +946,7 @@ def main():
 
 
     # ========================================================
-    # CHAT SCREEN
+    # CURRENT LANGUAGE
     # ========================================================
 
     lang = st.session_state.language
@@ -821,7 +992,7 @@ def main():
 
 
     # ========================================================
-    # INITIALIZE HISTORY
+    # INITIALIZE CHAT HISTORY
     # ========================================================
 
     if "chat_history" not in st.session_state:
@@ -829,18 +1000,17 @@ def main():
         st.session_state.chat_history = [
 
             {
-                "role":
-                "assistant",
+                "role": "assistant",
 
                 "content":
-                language_greetings.get(lang)
+                    language_greetings.get(lang)
             }
 
         ]
 
 
     # ========================================================
-    # DISPLAY HISTORY
+    # DISPLAY CHAT HISTORY
     # ========================================================
 
     for msg in st.session_state.chat_history:
@@ -881,29 +1051,27 @@ def main():
         st.session_state.chat_history.append(
 
             {
-                "role":
-                "user",
+                "role": "user",
 
-                "content":
-                user_input
+                "content": user_input
             }
 
         )
 
 
         # ----------------------------------------------------
-        # GENERATE RESPONSE
+        # RAG RESPONSE
         # ----------------------------------------------------
 
         with st.spinner(
-            "Hold on bestie... thinking 🤔"
+            "Hold on bestie... searching my trusted resources 🤔"
         ):
 
             reply = generate_response(
 
-                question=user_input,
+                user_input,
 
-                user_lang=lang
+                lang
             )
 
 
@@ -923,11 +1091,9 @@ def main():
         st.session_state.chat_history.append(
 
             {
-                "role":
-                "assistant",
+                "role": "assistant",
 
-                "content":
-                reply
+                "content": reply
             }
 
         )
