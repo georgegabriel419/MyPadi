@@ -32,7 +32,8 @@ print("PINECONE INDEX INFO:", index_info)
 
 embed_model = GoogleGenerativeAIEmbeddings(
     model="models/gemini-embedding-001",
-    google_api_key=GOOGLE_API_KEY
+    google_api_key=GOOGLE_API_KEY,
+    output_dimensionality=768
 )
 spitch_client = Spitch()
 
