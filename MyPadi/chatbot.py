@@ -545,11 +545,7 @@ Now answer the user's current question.
         # ====================================================
 
         chat = ChatGoogleGenerativeAI(
-
-            model="gemini-2.0-flash",
-
-            temperature=0.3,
-
+            model="gemini-3.6-flash",
             google_api_key=GOOGLE_API_KEY
         )
 
