@@ -63,7 +63,7 @@ def main():
 
     try:
         genai.configure(api_key=GOOGLE_API_KEY)
-        model = genai.GenerativeModel(model_name="models/gemini-2.0-flash")
+        model = genai.GenerativeModel("gemini-3.6-flash")
     except Exception:
         st.error("⚠️ Failed to initialize Gemini model.")
         return
