@@ -1,10 +1,10 @@
 import os
-import nest_asyncio
+import time
 import streamlit as st
 from dotenv import load_dotenv
 from spitch import Spitch
-import google.generativeai as genai
-
+from google import genai
+from google.genai import types
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain.prompts import (
     ChatPromptTemplate,
@@ -14,7 +14,6 @@ from langchain.prompts import (
 )
 from langchain.chains import LLMChain
 from langchain.memory import ChatMessageHistory, ConversationBufferMemory
-
 from pinecone import Pinecone
 from keywords import allowed_keywords
 from style import apply_custom_styles
@@ -22,14 +21,13 @@ from style import apply_custom_styles
 
 # ───── Apply Custom Theme ─────
 apply_custom_styles()
+
 st.set_page_config(
     page_title="Chat with MyPadi",
     page_icon="💬"
 )
 
-
-# ───── Init ─────
-nest_asyncio.apply()
+# ───── Load Environment Variables ─────
 load_dotenv()
 
 PINECONE_API_KEY = os.getenv("PINECONE_API_KEY")
@@ -37,32 +35,30 @@ GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 SPITCH_API_KEY = os.getenv("SPITCH_API_KEY")
 
 
-# ───── Validate API Keys ─────
+# ───── Check Required Keys ─────
 if not PINECONE_API_KEY:
-    st.error("PINECONE_API_KEY is missing from Streamlit Secrets.")
+    st.error("Pinecone API key is missing.")
 
 if not GOOGLE_API_KEY:
-    st.error("GOOGLE_API_KEY is missing from Streamlit Secrets.")
+    st.error("Google API key is missing.")
 
 
-# ───── Configure Google Generative AI ─────
-genai.configure(api_key=GOOGLE_API_KEY)
-
-
-# ───── Initialize Pinecone ─────
+# ───── Pinecone ─────
 pc = Pinecone(api_key=PINECONE_API_KEY)
 
 pinecone_index = pc.Index("sti-teenage-preg")
 
-# Print index information to Streamlit Cloud logs
-try:
-    index_info = pc.describe_index("sti-teenage-preg")
-    print("PINECONE INDEX INFO:", index_info)
-except Exception as e:
-    print("Could not retrieve Pinecone index information:", e)
+index_info = pc.describe_index("sti-teenage-preg")
+
+print("PINECONE INDEX INFO:", index_info)
 
 
-# ───── Initialize Spitch ─────
+# ───── Google GenAI Client ─────
+# Uses the newer Google GenAI SDK directly.
+google_client = genai.Client(api_key=GOOGLE_API_KEY)
+
+
+# ───── Spitch ─────
 spitch_client = Spitch()
 
 
@@ -99,29 +95,37 @@ language_greetings = {
 system_prompt_template_base = """
 You are MyPadi — the user's best friend and health gist buddy.
 
-You give warm, non-judgy advice about STIs and teenage pregnancy in {lang}.
-Sound casual, fun, and caring. Like you're chatting with your close friend.
+You give warm, non-judgy and medically responsible information
+about STIs and teenage pregnancy in {lang}.
 
-Use this information if helpful:
+Sound casual, friendly, caring and easy to understand.
+
+Use the following information from the knowledge base if helpful:
 
 {doc_content}
 
 Respond in {lang} ONLY.
-Avoid using English or mixing languages.
 
-Use everyday, conversational phrases that sound natural in {lang}.
+Avoid using English or mixing languages when responding in
+Yoruba, Igbo or Hausa.
 
-Be brief (1–3 sentences), but full of love and help.
+Use everyday conversational language that sounds natural.
 
-If the question is not relevant, kindly steer it back to STI or teenage pregnancy.
+Keep the answer brief, around 1–3 sentences when possible.
 
-IMPORTANT:
-Do NOT write in English or mix in English words, even for emphasis.
+If the question is not relevant to STI or teenage pregnancy,
+kindly steer the conversation back to those topics.
+
+Do not invent medical facts.
+Do not make a diagnosis.
+Encourage the user to speak with a qualified healthcare professional
+when the situation requires medical attention.
 """
 
 
-# ───── Language for TTS ─────
+# ───── Language Translation Codes ─────
 def translate_prompt_language(lang):
+
     return {
         "Yoruba": "yo",
         "Igbo": "ig",
@@ -130,8 +134,12 @@ def translate_prompt_language(lang):
     }.get(lang, "en")
 
 
-# ───── Limit Response Length ─────
+# ───── Trim Response ─────
 def trim_to_words(text, max_words=300):
+
+    if not text:
+        return ""
+
     words = text.split()
 
     if len(words) > max_words:
@@ -140,131 +148,197 @@ def trim_to_words(text, max_words=300):
     return " ".join(words)
 
 
-# ───── Generate Embedding ─────
-def generate_embedding(text):
+# ───── Google Embedding Function ─────
+def create_embedding(text, max_retries=3):
+
     """
-    Generate a 768-dimensional embedding using
-    Google's Gemini embedding model.
+    Creates a 768-dimensional embedding using
+    Google's current GenAI SDK.
 
-    The Pinecone index was created with dimension=768,
-    so we explicitly request 768 dimensions.
+    The Pinecone index is 768 dimensions,
+    so output_dimensionality must remain 768.
     """
 
-    try:
-        embedding_response = genai.embed_content(
-            model="models/gemini-embedding-001",
-            content=text,
-            task_type="retrieval_query",
-            output_dimensionality=768
-        )
+    last_error = None
 
-        embedding = embedding_response["embedding"]
+    for attempt in range(max_retries):
 
-        # Make sure Pinecone receives normal floats
-        embedding = [float(value) for value in embedding]
+        try:
 
-        print("Embedding generated successfully.")
-        print("Embedding dimension:", len(embedding))
+            result = google_client.models.embed_content(
+                model="gemini-embedding-001",
+                contents=text,
+                config=types.EmbedContentConfig(
+                    output_dimensionality=768
+                )
+            )
 
-        return embedding
+            embedding = result.embeddings[0].values
 
-    except Exception as e:
-        print("EMBEDDING ERROR:", repr(e))
-        raise
+            embedding = [float(value) for value in embedding]
+
+            # Safety check
+            if len(embedding) != 768:
+                raise ValueError(
+                    f"Expected 768 dimensions, got {len(embedding)}"
+                )
+
+            return embedding
+
+        except Exception as e:
+
+            last_error = e
+
+            print(
+                f"Embedding attempt {attempt + 1} failed: {e}"
+            )
+
+            if attempt < max_retries - 1:
+                time.sleep(2)
+
+    raise RuntimeError(
+        f"Google embedding failed after {max_retries} attempts: "
+        f"{last_error}"
+    )
 
 
-# ───── Generate Chatbot Response ─────
+# ───── Generate Response ─────
 def generate_response(question, user_lang):
 
-    # ───── Keyword Filter ─────
+    # Check allowed topics
     if not any(
         keyword in question.lower()
         for keyword in allowed_keywords
     ):
+
         return {
             "English": (
-                "Hmm bestie 🫶🏾 — I can only help with STI and "
-                "teenage pregnancy matters. Ask me something like that!"
+                "Hmm bestie 🫶🏾 — I can only help with STI "
+                "and teenage pregnancy matters. "
+                "Ask me something like that!"
             ),
 
             "Yoruba": (
-                "Ore mi 🫶🏾 — Mo le ran e lowo lori koko STI "
-                "ati oyun lasiko omode nikan."
+                "Ore mi 🫶🏾 — Mo le ran e lowo lori koko "
+                "STI ati oyun lasiko omode nikan."
             ),
 
             "Igbo": (
-                "Nwanne 🫶🏾 — Ana m enyere maka STIs na ime nwa "
-                "n'oge ntorobia."
+                "Nwanne 🫶🏾 — Ana m enyere maka STIs "
+                "na ime nwa n'oge ntorobia."
             ),
 
             "Hausa": (
-                "Kawaye 🫶🏾 — Tambayoyina na game da STI ko ciki "
-                "a kuruciya ne kawai."
+                "Kawaye 🫶🏾 — Tambayoyina na game da STI "
+                "ko ciki a kuruciya ne kawai."
             ),
 
             "Pidgin": (
-                "Padi mi 🫶🏾 — Na only STI or teenage belle "
-                "I sabi talk about oh."
+                "Padi mi 🫶🏾 — Na only STI or teenage "
+                "belle I sabi talk about oh."
             )
-        }.get(user_lang)
-
-
-    # ───── Generate Query Embedding ─────
-    query_embed = generate_embedding(question)
-
-
-    # ───── Safety Check for Pinecone Dimension ─────
-    if len(query_embed) != 768:
-        raise ValueError(
-            f"Embedding dimension is {len(query_embed)}, "
-            f"but Pinecone requires 768 dimensions."
+        }.get(
+            user_lang,
+            "Please ask me something about STI or teenage pregnancy."
         )
 
 
-    # ───── Search Pinecone ─────
-    results = pinecone_index.query(
-        vector=query_embed,
-        top_k=3,
-        include_metadata=True
+    # ───── Create Query Embedding ─────
+    try:
+
+        query_embed = create_embedding(question)
+
+    except Exception as e:
+
+        print("EMBEDDING ERROR:", e)
+
+        return {
+            "English": (
+                "Sorry bestie 🫶🏾, I'm having a little connection "
+                "problem right now. Please try again in a moment."
+            ),
+
+            "Yoruba": (
+                "Ma binu ore mi 🫶🏾, isoro kekere wa pelu asopọ "
+                "bayi. Jowo gbiyanju lẹẹkansi."
+            ),
+
+            "Igbo": (
+                "Ndo nwanne 🫶🏾, enwere obere nsogbu njikọ ugbu a. "
+                "Biko nwaa ọzọ obere oge."
+            ),
+
+            "Hausa": (
+                "Yi hakuri kawaye 🫶🏾, akwai karamar matsalar "
+                "haɗi yanzu. Da fatan za ka sake gwadawa."
+            ),
+
+            "Pidgin": (
+                "Sorry my padi 🫶🏾, connection get small problem "
+                "now. Abeg try again in a little while."
+            )
+        }.get(
+            user_lang,
+            "Sorry, something went wrong. Please try again."
+        )
+
+
+    # ───── Pinecone Search ─────
+    try:
+
+        results = pinecone_index.query(
+            vector=query_embed,
+            top_k=3,
+            include_metadata=True
+        )
+
+        matches = results.get("matches", [])
+
+        doc_contents = []
+
+        for match in matches:
+
+            metadata = match.get("metadata", {})
+
+            text = metadata.get("text", "")
+
+            if text:
+                doc_contents.append(text)
+
+        doc = "\n".join(doc_contents)
+
+        if not doc:
+            doc = "No extra information was found."
+
+    except Exception as e:
+
+        print("PINECONE ERROR:", e)
+
+        doc = "No extra information was found."
+
+
+    # ───── Escape Curly Brackets ─────
+    doc = (
+        doc
+        .replace("{", "{{")
+        .replace("}", "}}")
     )
 
 
-    # ───── Extract Retrieved Documents ─────
-    doc_contents = []
-
-    for match in results.get("matches", []):
-
-        metadata = match.get("metadata", {})
-
-        text = metadata.get("text", "")
-
-        if text:
-            doc_contents.append(text)
-
-
-    # Combine retrieved information
-    doc = "\n".join(doc_contents)
-
-    # Escape curly brackets so they don't interfere
-    # with the LangChain prompt formatting
-    doc = doc.replace("{", "{{").replace("}", "}}")
-
-
-    if not doc:
-        doc = "No extra gist found."
-
-
-    # ───── Build Prompt ─────
+    # ───── Create Prompt ─────
     prompt = system_prompt_template_base.format(
         doc_content=doc,
         lang=user_lang
     )
 
 
-    # ───── Build Conversation History ─────
+    # ───── Conversation History ─────
     history = ChatMessageHistory()
 
-    for msg in st.session_state.chat_history:
+    for msg in st.session_state.get(
+        "chat_history",
+        []
+    ):
 
         if msg["role"] == "user":
 
@@ -294,8 +368,9 @@ def generate_response(question, user_lang):
     )
 
 
-    # ───── LangChain Chain ─────
+    # ───── LangChain Prompt ─────
     chain = LLMChain(
+
         llm=chat,
 
         prompt=ChatPromptTemplate(
@@ -316,25 +391,60 @@ def generate_response(question, user_lang):
         ),
 
         memory=memory,
+
         verbose=False
     )
 
 
-    # ───── Generate Final Answer ─────
-    res = chain.invoke(
-        {
+    # ───── Generate Answer ─────
+    try:
+
+        response = chain.invoke({
             "question": question
-        }
-    )
+        })
 
+        full_text = response.get(
+            "text",
+            ""
+        ).strip()
 
-    full_text = res.get(
-        "text",
-        ""
-    ).strip()
+        return trim_to_words(
+            full_text
+        )
 
+    except Exception as e:
 
-    return trim_to_words(full_text)
+        print("GEMINI CHAT ERROR:", e)
+
+        return {
+            "English": (
+                "Sorry bestie 🫶🏾, I couldn't generate a response "
+                "right now. Please try again."
+            ),
+
+            "Yoruba": (
+                "Ma binu ore mi 🫶🏾, mi o le dahun bayii. "
+                "Jowo gbiyanju lẹẹkansi."
+            ),
+
+            "Igbo": (
+                "Ndo nwanne 🫶🏾, enweghị m ike ịza ugbu a. "
+                "Biko nwaa ọzọ."
+            ),
+
+            "Hausa": (
+                "Yi hakuri kawaye 🫶🏾, ba zan iya ba da amsa "
+                "yanzu ba. Da fatan za ka sake gwadawa."
+            ),
+
+            "Pidgin": (
+                "Sorry my padi 🫶🏾, I no fit generate response "
+                "now. Abeg try again."
+            )
+        }.get(
+            user_lang,
+            "Sorry, I couldn't generate a response."
+        )
 
 
 # ───── Text-to-Speech ─────
@@ -343,7 +453,12 @@ def synthesize_tts(text, lang_code):
     if not lang_code:
         return None
 
-    if lang_code not in ["en", "yo", "ig", "ha"]:
+    if lang_code not in [
+        "en",
+        "yo",
+        "ig",
+        "ha"
+    ]:
         return None
 
     try:
@@ -358,7 +473,7 @@ def synthesize_tts(text, lang_code):
 
     except Exception as e:
 
-        print("TTS ERROR:", repr(e))
+        print("TTS ERROR:", e)
 
         return None
 
@@ -366,7 +481,6 @@ def synthesize_tts(text, lang_code):
 # ───── Main App ─────
 def main():
 
-    # ───── Page Header ─────
     st.markdown(
         "<div style='margin-top:-160px'></div>",
         unsafe_allow_html=True
@@ -394,7 +508,6 @@ def main():
             index=None
         )
 
-
         if st.button("✅ Let's Go!") and lang:
 
             st.session_state.language = lang
@@ -402,11 +515,9 @@ def main():
             st.rerun()
 
 
-    # ───── Chat Interface ─────
     else:
 
         lang = st.session_state.language
-
 
         st.success(
             f"🗣️ You're chatting in: **{lang}**"
@@ -427,7 +538,7 @@ def main():
         )
 
 
-        # ───── Initialize Chat History ─────
+        # ───── Initialize Chat ─────
         if "chat_history" not in st.session_state:
 
             st.session_state.chat_history = [
@@ -438,28 +549,30 @@ def main():
             ]
 
 
-        # ───── Display Previous Messages ─────
+        # ───── Display Chat History ─────
         for msg in st.session_state.chat_history:
 
-            with st.chat_message(msg["role"]):
+            with st.chat_message(
+                msg["role"]
+            ):
 
                 st.markdown(
                     msg["content"]
                 )
 
 
-        # ───── Chat Input ─────
+        # ───── User Input ─────
         if user_input := st.chat_input(
-            "What’s on your mind?"
+            "What's on your mind?"
         ):
 
-            # Display user message
             with st.chat_message("user"):
 
-                st.markdown(user_input)
+                st.markdown(
+                    user_input
+                )
 
 
-            # Save user message
             st.session_state.chat_history.append(
                 {
                     "role": "user",
@@ -473,34 +586,19 @@ def main():
                 "Hold on bestie... thinking 🤔"
             ):
 
-                try:
-
-                    reply = generate_response(
-                        user_input,
-                        lang
-                    )
-
-                except Exception as e:
-
-                    print(
-                        "CHATBOT ERROR:",
-                        repr(e)
-                    )
-
-                    reply = (
-                        "Sorry bestie 🫶🏾, "
-                        "I'm having a little technical issue "
-                        "right now. Please try again in a moment."
-                    )
+                reply = generate_response(
+                    user_input,
+                    lang
+                )
 
 
-            # ───── Display Assistant Response ─────
             with st.chat_message("assistant"):
 
-                st.markdown(reply)
+                st.markdown(
+                    reply
+                )
 
 
-            # ───── Save Assistant Response ─────
             st.session_state.chat_history.append(
                 {
                     "role": "assistant",
@@ -510,7 +608,9 @@ def main():
 
 
             # ───── Text-to-Speech ─────
-            lang_code = translate_prompt_language(lang)
+            lang_code = translate_prompt_language(
+                lang
+            )
 
 
             if (
