@@ -3,7 +3,7 @@ import os
 import random
 from dotenv import load_dotenv
 import google.generativeai as genai
-from spitch import Spitch
+
 from myth_data import (
     quiz_data_english,
     quiz_data_yoruba,
@@ -72,7 +72,7 @@ def main():
     SPITCH_API_KEY = os.getenv("SPITCH_API_KEY")
 
     genai.configure(api_key=GENAI_API_KEY)
-    model = genai.GenerativeModel("models/gemini-2.0-flash")
+    model = genai.GenerativeModel("gemini-3.6-flash")
 
     language_map = {
         "English": ("English", quiz_data_english),
